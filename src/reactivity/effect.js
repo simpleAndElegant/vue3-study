@@ -59,18 +59,39 @@ export function trigger(target, type, key, value, oldValue) {
   if (!depsMap) {
     return;
   }
-  console.log(depsMap);
-  const run = (effects) => {
-    if (effects) {
-      effects.forEach((effect) => effect());
+
+  // 计算属性要优先于effect执行 队列
+  const effects = new Set();
+  const computedRunners = new Set();
+
+
+  const add = (effectsToAdd) => {
+    if (effectsToAdd) {
+        effectsToAdd.forEach(effect => {
+            if (effect.options.computed) {
+                computedRunners.add(effect);
+            } else {
+                effects.add(effect);
+            }
+        });
     }
-  };
+  }
   if (key !== null) {
     // arr.push(4) [1,2,3    , 4]   push length
-    run(depsMap.get(key));
+    add(depsMap.get(key));
   }
 
   if (type === TriggerOpTypes.ADD) { // 对数组新增属性 会触发length 对应的依赖 在取值的时候回对length属性进行依赖收集
-    run(depsMap.get(Array.isArray(target) ? 'length' : ''));
+    add(depsMap.get(Array.isArray(target) ? 'length' : ''));
   }
+
+  const run = (effect) => {
+    if (effect.options.scheduler) {
+        effect.options.scheduler();
+    } else {
+        effect();
+    }
+  }
+  computedRunners.forEach(run);
+  effects.forEach(run);
 }
